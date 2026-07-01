@@ -54,8 +54,9 @@ class OpenRouterProviderTest {
         assertTrue("Should include OPENAI", providers.contains(ModelProvider.OPENAI))
         assertTrue("Should include GEMINI", providers.contains(ModelProvider.GEMINI))
         assertTrue("Should include OPENROUTER", providers.contains(ModelProvider.OPENROUTER))
+        assertTrue("Should include LOCAL_LLAMA_CPP", providers.contains(ModelProvider.LOCAL_LLAMA_CPP))
         
-        assertEquals("Should have exactly 3 providers", 3, providers.size)
+        assertEquals("Should have exactly 4 providers", 4, providers.size)
     }
     
     @Test

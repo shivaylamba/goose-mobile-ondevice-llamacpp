@@ -51,10 +51,11 @@ class AiModelTest {
     }
 
     @Test
-    fun getProviders_returnsAllThreeProviders() {
+    fun getProviders_returnsAllProviders() {
         val providers = AiModel.getProviders()
         
-        assertEquals(3, providers.size)
+        assertEquals(4, providers.size)
+        assertTrue(providers.contains(ModelProvider.LOCAL_LLAMA_CPP))
         assertTrue(providers.contains(ModelProvider.OPENAI))
         assertTrue(providers.contains(ModelProvider.GEMINI))
         assertTrue(providers.contains(ModelProvider.OPENROUTER))
@@ -94,6 +95,15 @@ class AiModelTest {
         assertTrue(models.all { it.provider == ModelProvider.OPENROUTER })
         assertTrue(models.any { it.identifier.startsWith("anthropic/") })
         assertTrue(models.any { it.identifier.startsWith("meta-llama/") })
+    }
+
+    @Test
+    fun getModelsForProvider_localLlamaCpp_returnsOnlyLocalModels() {
+        val models = AiModel.getModelsForProvider(ModelProvider.LOCAL_LLAMA_CPP)
+
+        assertTrue(models.isNotEmpty())
+        assertTrue(models.all { it.provider == ModelProvider.LOCAL_LLAMA_CPP })
+        assertTrue(models.any { it.identifier == "phone-gemma-4-e2b-npu" })
     }
 
     @Test
