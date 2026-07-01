@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,21 +79,35 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import xyz.block.gosling.R
 import xyz.block.gosling.features.agent.Agent
 import xyz.block.gosling.features.agent.AgentStatus
+import xyz.block.gosling.features.agent.AiModel
 import xyz.block.gosling.features.agent.Conversation
+import xyz.block.gosling.features.agent.LlamaRuntimeService
+import xyz.block.gosling.features.agent.ModelProvider
 import xyz.block.gosling.features.agent.getConversationTitle
 import xyz.block.gosling.features.overlay.OverlayService
 import xyz.block.gosling.features.settings.SettingsStore
 import xyz.block.gosling.shared.services.VoiceRecognitionService
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 private const val TAG = "MainScreen"
+
+private data class LocalLlamaRuntimeStatus(
+    val isOnline: Boolean,
+    val modelName: String? = null,
+    val message: String
+)
 
 private val predefinedQueries = listOf(
     "What's the weather like?",
@@ -121,6 +136,8 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val activity = context as MainActivity
+    val settingsStore = remember { SettingsStore(context) }
+    val selectedModel = AiModel.fromIdentifier(settingsStore.llmModel)
     var conversations by remember { mutableStateOf<List<Conversation>>(emptyList()) }
     var textInput by remember { mutableStateOf("") }
     var currentConversation by remember { mutableStateOf<Conversation?>(null) }
@@ -431,6 +448,15 @@ fun MainScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
+                    if (selectedModel.provider == ModelProvider.LOCAL_LLAMA_CPP) {
+                        LocalRuntimeStatusCard(
+                            selectedModel = selectedModel,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 8.dp)
+                        )
+                    }
+
                     Icon(
                         painter = painterResource(id = R.drawable.goose),
                         contentDescription = "Goose",
@@ -479,13 +505,26 @@ fun MainScreen(
                     val startPadding = paddingValues.calculateStartPadding(LayoutDirection.Ltr)
                     val endPadding = paddingValues.calculateEndPadding(LayoutDirection.Ltr)
                     val bottomPadding = paddingValues.calculateBottomPadding() + 8.dp
+
+                    if (selectedModel.provider == ModelProvider.LOCAL_LLAMA_CPP) {
+                        LocalRuntimeStatusCard(
+                            selectedModel = selectedModel,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = topPadding, start = startPadding, end = endPadding)
+                        )
+                    }
                     
                     // Show current conversation if it exists
                     if (currentConversation != null) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = topPadding, start = startPadding, end = endPadding)
+                                .padding(
+                                    top = if (selectedModel.provider == ModelProvider.LOCAL_LLAMA_CPP) 0.dp else topPadding,
+                                    start = startPadding,
+                                    end = endPadding
+                                )
                         ) {
                             ConversationCard(
                                 conversation = currentConversation!!,
@@ -676,6 +715,142 @@ fun MainScreen(
     }
 }
 
+@Composable
+private fun LocalRuntimeStatusCard(
+    selectedModel: AiModel,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var runtimeStatus by remember {
+        mutableStateOf(LocalLlamaRuntimeStatus(isOnline = false, message = "starting local runtime..."))
+    }
+
+    LaunchedEffect(selectedModel.identifier) {
+        LlamaRuntimeService.start(context)
+        while (true) {
+            runtimeStatus = withContext(Dispatchers.IO) {
+                fetchLocalLlamaRuntimeStatus()
+            }
+            delay(3000)
+        }
+    }
+
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = if (runtimeStatus.isOnline) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.errorContainer
+            }
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        val contentColor = if (runtimeStatus.isOnline) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onErrorContainer
+        }
+
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "Running on phone: ${selectedModel.displayName}",
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor
+            )
+            Text(
+                text = if (runtimeStatus.isOnline) {
+                    "llama.cpp: online | model: ${runtimeStatus.modelName ?: "unknown"}"
+                } else {
+                    "llama.cpp: ${runtimeStatus.message}"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor
+            )
+            Text(
+                text = "app-managed local API: 127.0.0.1:8080 | target: HTP0 Hexagon NPU",
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor
+            )
+            Text(
+                text = "Text-only GGUF path. Camera/gallery images are omitted from the local prompt.",
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = {
+                        LlamaRuntimeService.start(context)
+                        runtimeStatus = LocalLlamaRuntimeStatus(
+                            isOnline = false,
+                            message = "starting local runtime..."
+                        )
+                    }
+                ) {
+                    Text("Start")
+                }
+                TextButton(
+                    onClick = {
+                        LlamaRuntimeService.stop(context)
+                        runtimeStatus = LocalLlamaRuntimeStatus(
+                            isOnline = false,
+                            message = "stopped"
+                        )
+                    }
+                ) {
+                    Text("Stop")
+                }
+            }
+        }
+    }
+}
+
+private fun fetchLocalLlamaRuntimeStatus(): LocalLlamaRuntimeStatus {
+    var connection: HttpURLConnection? = null
+
+    return try {
+        connection = (URL("${LlamaRuntimeService.LOCAL_API_BASE}/v1/models").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 1200
+            readTimeout = 1200
+            requestMethod = "GET"
+        }
+
+        val code = connection.responseCode
+        if (code !in 200..299) {
+            return LocalLlamaRuntimeStatus(
+                isOnline = false,
+                message = "server returned HTTP $code"
+            )
+        }
+
+        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        val firstModel = JSONObject(body)
+            .optJSONArray("data")
+            ?.optJSONObject(0)
+            ?.optString("id")
+            ?.takeIf { it.isNotBlank() }
+
+        LocalLlamaRuntimeStatus(
+            isOnline = true,
+            modelName = firstModel?.substringAfterLast('/') ?: "unknown",
+            message = "online"
+        )
+    } catch (e: Exception) {
+        LocalLlamaRuntimeStatus(
+            isOnline = false,
+            message = "not reachable on 127.0.0.1:8080"
+        )
+    } finally {
+        connection?.disconnect()
+    }
+}
+
 private fun startVoiceRecognition(
     context: Context,
     onRecordingComplete: () -> Unit
@@ -728,11 +903,14 @@ private fun processAgentCommand(
 ) {
     val activity = context as MainActivity
     val statusToast = Toast.makeText(context, "", Toast.LENGTH_SHORT)
-    val agent = activity.currentAgent
+    val agent = activity.currentAgent ?: Agent.getInstance()
 
     if (agent == null) {
-        statusToast.setText("Agent service not available")
+        statusToast.setText("Starting agent service...")
         statusToast.show()
+        activity.agentServiceManager.bindAndStartAgent {
+            processAgentCommand(context, command, imageUri, onMessageReceived)
+        }
         return
     }
 

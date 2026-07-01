@@ -1642,6 +1642,7 @@ object ToolHandler {
      */
     private fun getProviderHandler(provider: ModelProvider): xyz.block.gosling.features.agent.providers.LLMProviderHandler {
         return when (provider) {
+            ModelProvider.LOCAL_LLAMA_CPP -> xyz.block.gosling.features.agent.providers.LlamaCppProviderHandler()
             ModelProvider.OPENAI -> xyz.block.gosling.features.agent.providers.OpenAIProviderHandler()
             ModelProvider.GEMINI -> xyz.block.gosling.features.agent.providers.GeminiProviderHandler()
             ModelProvider.OPENROUTER -> xyz.block.gosling.features.agent.providers.OpenRouterProviderHandler()

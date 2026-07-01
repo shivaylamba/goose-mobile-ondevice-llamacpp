@@ -88,7 +88,7 @@ fun LLMConfigStep(
                         onExpandedChange = { providerExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value = selectedProvider.name,
+                            value = selectedProvider.displayName,
                             onValueChange = {},
                             readOnly = true,
                             modifier = Modifier
@@ -103,7 +103,7 @@ fun LLMConfigStep(
                         ) {
                             AiModel.getProviders().forEach { provider ->
                                 DropdownMenuItem(
-                                    text = { Text(provider.name) },
+                                    text = { Text(provider.displayName) },
                                     onClick = {
                                         selectedProvider = provider
                                         providerExpanded = false
@@ -150,47 +150,49 @@ fun LLMConfigStep(
                     }
                 }
                 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(text = "API Key")
-                    Row(
+                if (currentModel.provider.requiresApiKey) {
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedTextField(
-                            value = apiKey,
-                            onValueChange = { apiKey = it },
-                            modifier = Modifier.weight(1f),
-                            visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-                        )
-                        
-                        // QR Code scanner button
-                        Button(
-                            onClick = { showQRScanner = true },
-                            modifier = Modifier.align(Alignment.CenterVertically)
+                        Text(text = "API Key")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.QrCodeScanner,
-                                contentDescription = "Scan QR Code"
+                            OutlinedTextField(
+                                value = apiKey,
+                                onValueChange = { apiKey = it },
+                                modifier = Modifier.weight(1f),
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
                             )
-                            Text(
-                                text = "Scan",
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                        
-                        // QR Code scanner dialog
-                        if (showQRScanner) {
-                            QRCodeScannerDialog(
-                                onDismiss = { showQRScanner = false },
-                                onQRCodeScanned = { scannedApiKey ->
-                                    apiKey = scannedApiKey
-                                }
-                            )
+
+                            // QR Code scanner button
+                            Button(
+                                onClick = { showQRScanner = true },
+                                modifier = Modifier.align(Alignment.CenterVertically)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCodeScanner,
+                                    contentDescription = "Scan QR Code"
+                                )
+                                Text(
+                                    text = "Scan",
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+
+                            // QR Code scanner dialog
+                            if (showQRScanner) {
+                                QRCodeScannerDialog(
+                                    onDismiss = { showQRScanner = false },
+                                    onQRCodeScanned = { scannedApiKey ->
+                                        apiKey = scannedApiKey
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -209,7 +211,7 @@ fun LLMConfigStep(
                 .padding(bottom = 16.dp)
                 .navigationBarsPadding()
                 .imePadding(),
-            enabled = llmModel.isNotEmpty() && apiKey.isNotEmpty(),
+            enabled = llmModel.isNotEmpty() && (!currentModel.provider.requiresApiKey || apiKey.isNotEmpty()),
         ) {
             Text("Complete Setup")
         }

@@ -247,7 +247,7 @@ fun SettingsScreen(
                             onExpandedChange = { providerExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = selectedProvider.name,
+                                value = selectedProvider.displayName,
                                 onValueChange = {},
                                 readOnly = true,
                                 modifier = Modifier
@@ -262,7 +262,7 @@ fun SettingsScreen(
                             ) {
                                 AiModel.getProviders().forEach { provider ->
                                     DropdownMenuItem(
-                                        text = { Text(provider.name) },
+                                        text = { Text(provider.displayName) },
                                         onClick = {
                                             selectedProvider = provider
                                             providerExpanded = false
@@ -310,53 +310,55 @@ fun SettingsScreen(
                         }
                     }
 
-                    // API Key
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(text = "API Key")
-                        Row(
+                    if (currentModel.provider.requiresApiKey) {
+                        // API Key
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            OutlinedTextField(
-                                value = apiKey,
-                                onValueChange = {
-                                    apiKey = it
-                                    settingsStore.setApiKey(currentModel.provider, it)
-                                },
-                                modifier = Modifier.weight(1f),
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-                            )
-                            
-                            var showQRScanner by remember { mutableStateOf(false) }
-                            
-                            // Use Button instead of IconButton to make it more visible
-                            Button(
-                                onClick = { showQRScanner = true },
-                                modifier = Modifier.align(Alignment.CenterVertically)
+                            Text(text = "API Key")
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = "Scan QR Code"
+                                OutlinedTextField(
+                                    value = apiKey,
+                                    onValueChange = {
+                                        apiKey = it
+                                        settingsStore.setApiKey(currentModel.provider, it)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
                                 )
-                                Text(
-                                    text = "Scan",
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
-                            }
-                            
-                            if (showQRScanner) {
-                                QRCodeScannerDialog(
-                                    onDismiss = { showQRScanner = false },
-                                    onQRCodeScanned = { scannedApiKey ->
-                                        apiKey = scannedApiKey
-                                        settingsStore.setApiKey(currentModel.provider, scannedApiKey)
-                                    }
-                                )
+
+                                var showQRScanner by remember { mutableStateOf(false) }
+
+                                // Use Button instead of IconButton to make it more visible
+                                Button(
+                                    onClick = { showQRScanner = true },
+                                    modifier = Modifier.align(Alignment.CenterVertically)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.QrCodeScanner,
+                                        contentDescription = "Scan QR Code"
+                                    )
+                                    Text(
+                                        text = "Scan",
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+
+                                if (showQRScanner) {
+                                    QRCodeScannerDialog(
+                                        onDismiss = { showQRScanner = false },
+                                        onQRCodeScanned = { scannedApiKey ->
+                                            apiKey = scannedApiKey
+                                            settingsStore.setApiKey(currentModel.provider, scannedApiKey)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

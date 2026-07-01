@@ -1,9 +1,13 @@
 package xyz.block.gosling.features.agent
 
-enum class ModelProvider {
-    OPENAI,
-    GEMINI,
-    OPENROUTER
+enum class ModelProvider(
+    val displayName: String,
+    val requiresApiKey: Boolean
+) {
+    LOCAL_LLAMA_CPP("Local llama.cpp", false),
+    OPENAI("OpenAI", true),
+    GEMINI("Gemini", true),
+    OPENROUTER("OpenRouter", true)
 }
 
 data class AiModel(
@@ -13,6 +17,8 @@ data class AiModel(
 ) {
     companion object {
         val AVAILABLE_MODELS = listOf(
+            AiModel("Phone llama.cpp Gemma 4 E2B NPU", "phone-gemma-4-e2b-npu", ModelProvider.LOCAL_LLAMA_CPP),
+
             AiModel("GPT-4.1", "gpt-4.1", ModelProvider.OPENAI),
             AiModel("GPT-4o", "gpt-4o", ModelProvider.OPENAI),
             AiModel("GPT-4o mini", "gpt-4o-mini", ModelProvider.OPENAI),

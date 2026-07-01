@@ -1,9 +1,9 @@
 package xyz.block.gosling.features.agent
 
+import android.app.Activity
 import android.os.Bundle
 import android.os.Environment
 import android.util.Log
-import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
@@ -18,7 +18,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class DebugActivity : AppCompatActivity() {
+class DebugActivity : Activity() {
     companion object {
         private const val LATEST_COMMAND_LINK = "latest_command_result.txt"
     }
@@ -35,6 +35,7 @@ class DebugActivity : AppCompatActivity() {
                 } else {
                     Log.e("UiHierarchy", "Service not running")
                 }
+                finish()
             }
 
             "xyz.block.gosling.EXECUTE_COMMAND" -> {
@@ -67,18 +68,22 @@ class DebugActivity : AppCompatActivity() {
                                 Log.e("DebugActivity", "Error executing command: ${e.message}")
                                 // Write error to file
                                 writeResultToFile(command, "Error: ${e.message}")
+                            } finally {
+                                agentServiceManager.unbindAgent()
+                                runOnUiThread { finish() }
                             }
                         }
                     }
+                } else {
+                    finish()
                 }
             }
 
             else -> {
                 Log.e("DebugActivity", "Unknown action: ${intent.action}")
+                finish()
             }
         }
-
-        finish()
     }
     
     /**

@@ -76,8 +76,8 @@ class Agent : Service() {
             OkHttpClient.Builder()
                 .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
                 .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.MINUTES)
+                .writeTimeout(5, TimeUnit.MINUTES)
                 .retryOnConnectionFailure(true)
                 .build()
         }
@@ -405,20 +405,27 @@ class Agent : Service() {
                         val model = AiModel.fromIdentifier(settings.llmModel)
                         val (assistantReply, toolCalls, annotation) = 
                             getProviderHandler(model.provider).parseResponse(response, llmDuration)
+                        val repeatedToolCalls = hasRepeatedToolCalls(toolCalls)
+                        val effectiveToolCalls = if (repeatedToolCalls) null else toolCalls
+                        val displayReply = if (repeatedToolCalls) {
+                            "$assistantReply\n\nI already performed that tool action, so I am stopping here."
+                        } else {
+                            assistantReply
+                        }
 
                         if (isCancelled) {
                             updateStatus(AgentStatus.Success("Operation cancelled"))
                             return@withContext "Operation cancelled by user"
                         }
 
-                        updateStatus(AgentStatus.Processing(assistantReply))
+                        updateStatus(AgentStatus.Processing(displayReply))
 
-                        val (toolResults, toolAnnotations) = executeTools(toolCalls, context)
+                        val (toolResults, toolAnnotations) = executeTools(effectiveToolCalls, context)
 
                         val assistantMessage = Message(
                             role = "assistant",
-                            content = contentWithText(assistantReply),
-                            toolCalls = toolCalls?.map { toolCall ->
+                            content = contentWithText(displayReply),
+                            toolCalls = effectiveToolCalls?.map { toolCall ->
                                 ToolCall(
                                     id = toolCall.toolId,
                                     function = ToolFunction(
@@ -444,7 +451,7 @@ class Agent : Service() {
                                 updateStatus(AgentStatus.Success("Operation cancelled"))
                                 return@withContext "Operation cancelled by user"
                             } else {
-                                updateStatus(AgentStatus.Success(assistantReply))
+                                updateStatus(AgentStatus.Success(displayReply))
                                 break
                             }
                         }
@@ -699,7 +706,7 @@ class Agent : Service() {
         val apiKey = settings.getApiKey(model.provider)
         
         // Check for empty API key early
-        if (apiKey.isNullOrBlank()) {
+        if (model.provider.requiresApiKey && apiKey.isBlank()) {
             updateStatus(AgentStatus.Error("API key is missing. Please add your API key in settings."))
             throw ApiKeyException("API key is missing. Please add your API key in settings.")
         }
@@ -734,6 +741,7 @@ class Agent : Service() {
      */
     private fun getProviderHandler(provider: ModelProvider): xyz.block.gosling.features.agent.providers.LLMProviderHandler {
         return when (provider) {
+            ModelProvider.LOCAL_LLAMA_CPP -> xyz.block.gosling.features.agent.providers.LlamaCppProviderHandler()
             ModelProvider.OPENAI -> xyz.block.gosling.features.agent.providers.OpenAIProviderHandler()
             ModelProvider.GEMINI -> xyz.block.gosling.features.agent.providers.GeminiProviderHandler()
             ModelProvider.OPENROUTER -> xyz.block.gosling.features.agent.providers.OpenRouterProviderHandler()
@@ -768,6 +776,20 @@ class Agent : Service() {
             )
         }
         return Pair(results, annotations)
+    }
+
+    private fun hasRepeatedToolCalls(toolCalls: List<InternalToolCall>?): Boolean {
+        if (toolCalls.isNullOrEmpty()) return false
+
+        val priorToolCalls = conversationManager.currentConversation.value?.messages
+            ?.flatMap { it.toolCalls ?: emptyList() }
+            ?.map { "${it.function.name}:${it.function.arguments}" }
+            ?.toSet()
+            ?: emptySet()
+
+        return toolCalls.all { toolCall ->
+            "${toolCall.name}:${toolCall.arguments}" in priorToolCalls
+        }
     }
 
     private fun calculateConversationStats(

@@ -39,6 +39,12 @@ android {
         compose = true
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
     }

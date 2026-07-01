@@ -66,7 +66,19 @@ class AgentServiceManager(private val context: Context) {
 
     fun bindAndStartAgent(callback: (Agent) -> Unit) {
         if (isBound) {
-            Log.d(TAG, "Service is already bound, skipping bind")
+            Agent.getInstance()?.let { agent ->
+                Log.d(TAG, "Service is already bound, using existing agent")
+                callback(agent)
+                return
+            }
+
+            Log.d(TAG, "Service was marked bound but no agent is available, rebinding")
+            unbindAgent()
+        }
+
+        Agent.getInstance()?.let { agent ->
+            Log.d(TAG, "Using existing agent instance")
+            callback(agent)
             return
         }
 
